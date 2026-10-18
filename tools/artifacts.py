@@ -59,12 +59,10 @@ def image_ref(name: str, artifact: dict[str, Any], preview: bool) -> str:
         is None
     ):
         raise ValueError("Use an approved image repository without interpolation")
-    if digest:
-        if (
-            not isinstance(digest, str)
-            or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
-        ):
-            raise ValueError("Expected an immutable image digest")
+    if not isinstance(digest, str):
+        raise ValueError("Expected an immutable image digest")
+    if digest and re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+        raise ValueError("Expected an immutable image digest")
     if preview and name in {"web", "gateway"}:
         tag = artifact["localTag"]
         if (
