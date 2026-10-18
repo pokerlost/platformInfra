@@ -1,6 +1,6 @@
 # Architecture
 
-The Vue/TypeScript website serves one immutable Flutter web build produced by pokerClient. The native client and that build use the same Dart contract and Flutter gameplay package. pokerengine remains the authoritative C++ engine with its Python binding; the SDK does not become a second engine. The preview is synthetic and public only. A production gameplay transport is not implemented by infrastructure.
+The Vue/TypeScript website serves one immutable Flutter web build produced by the Dart-only pokerClient workspace. Its `make export-web` command uses the pinned Flutter SDK and Dart checksum tool, with no Python template or project environment. The native client and that build use the same Dart contract and Flutter gameplay package. pokerengine remains the authoritative C++ engine with its Python binding; the SDK does not become a second engine. The preview is synthetic and public only. A production gameplay transport is not implemented by infrastructure.
 
 Traefik OSS terminates the gateway and selects the website or one of five foundation HTTP services. Service-specific prefixes are stripped once. Unknown API and realtime requests return an error rather than the SPA. TLS uses an existing certificate Secret in Kubernetes and explicit certificate files in Compose. No dashboard, Docker provider, application-start endpoint or blanket mutation retry is enabled.
 
