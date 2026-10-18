@@ -14,9 +14,9 @@ COMPOSE := $(DOCKER) compose --project-name $(PROJECT) --file compose.yaml --env
 HELM_LOCAL := $(HELM) --kubeconfig $(LOCAL_KUBECONFIG) --kube-context kind-$(CLUSTER_NAME)
 KUBE_LOCAL := $(KUBECTL) --kubeconfig $(LOCAL_KUBECONFIG) --context kind-$(CLUSTER_NAME)
 HELM_FLAGS := --namespace $(NAMESPACE) --wait --timeout 180s --rollback-on-failure
-.PHONY: help install lint typecheck test-unit test-integration test check values preview-values up preview down status logs init-local cluster local-context gateway-api deploy-preview deploy-local undeploy-local
+.PHONY: help install lint typecheck test-unit test-integration test-database test check values preview-values up preview down status logs init-local cluster local-context gateway-api deploy-preview deploy-local kube-secrets undeploy-local
 help:
-	@echo "install lint typecheck test check preview up down status logs cluster deploy-preview deploy-local undeploy-local"
+	@echo "install lint typecheck test test-integration test-database check preview up down status logs cluster deploy-preview deploy-local undeploy-local"
 install:
 	$(UV) sync --locked
 lint:
@@ -29,6 +29,8 @@ test-unit:
 test: test-unit
 test-integration:
 	$(UV) run --locked pytest tests/platform_integration.py --junitxml=coverage/platform.xml
+test-database:
+	$(UV) run --locked pytest tests/postgres_integration.py --junitxml=coverage/postgres.xml
 check: lint typecheck test-unit
 values:
 	$(UV) run --locked python -m tools.artifacts --output $(VALUES_DIR) --release $(RELEASE) --namespace $(NAMESPACE)
@@ -48,7 +50,7 @@ logs: preview-values
 init-local:
 	@install -d -m 700 .local
 	@set -e; umask 077; for name in auth accounts; do \
-		if ! test -e .local/$$name-db-password; then openssl rand -hex 24 > .local/$$name-db-password; fi; \
+		if ! test -e .local/$$name-db-password; then databasePassword=$$(openssl rand -hex 24); printf '%s' "$$databasePassword" > .local/$$name-db-password; fi; \
 		if ! test -e .local/$$name.env; then \
 			printf 'DATABASE_URL=postgresql+asyncpg://app:%s@%s-db:5432/%s\n' "$$(cat .local/$$name-db-password)" "$$name" "$$name" > .local/$$name.env; \
 		fi; \

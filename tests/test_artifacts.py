@@ -215,3 +215,60 @@ def test_changed_crd_is_rejected_before_deployment(
     (tmp_path / "gateway-api.yaml").write_bytes(b"changed")
     with pytest.raises(ValueError, match="checksum"):
         load_manifest(manifest)
+
+
+def test_preview_pins_the_same_local_image_in_compose_and_helm(
+    manifest: Path, tmp_path: Path
+) -> None:
+    """A published registry pin must not change an explicit local preview."""
+    output = tmp_path / "preview-with-published-images"
+    emit(manifest, output, True, "p", "foundation")
+    assert (output / "compose.env").read_text().splitlines() == [
+        "WEB_IMAGE=web:candidate",
+        "GATEWAY_IMAGE=gateway:candidate",
+    ]
+    values = json.loads((output / "web.values.json").read_text())
+    assert values["image"] == {
+        "repository": "web",
+        "tag": "candidate",
+        "digest": "",
+    }
+    data = load_manifest(manifest)
+    assert image_ref("web", data["images"]["web"], False).endswith(
+        "@sha256:" + "c" * 64
+    )
+
+
+def test_native_initialization_creates_private_consistent_credentials_once(
+    tmp_path: Path,
+) -> None:
+    """Run the actual Make/OpenSSL recipe against a disposable data directory."""
+    import re
+
+    command = ["make", "--file", str(ROOT / "Makefile"), "init-local"]
+    subprocess.run(command, cwd=tmp_path, check=True, capture_output=True, timeout=20)
+    before: dict[str, str] = {}
+    for name in ("auth", "accounts"):
+        password = tmp_path / ".local" / (name + "-db-password")
+        data = password.read_bytes()
+        valid = re.fullmatch(rb"[0-9a-f]{48}", data) is not None
+        assert valid, "Password files must contain exactly 48 hex bytes without LF"
+        assert password.stat().st_mode & 0o777 == 0o600
+        env_file = tmp_path / ".local" / (name + ".env")
+        expected = (
+            b"DATABASE_URL=postgresql+asyncpg://app:"
+            + data
+            + f"@{name}-db:5432/{name}\n".encode()
+        )
+        consistent = env_file.read_bytes() == expected
+        assert consistent, "The DSN and password file must contain the same credential"
+        assert env_file.stat().st_mode & 0o777 == 0o600
+        before[name] = hashlib.sha256(data).hexdigest()
+    subprocess.run(command, cwd=tmp_path, check=True, capture_output=True, timeout=20)
+    for name, expected_hash in before.items():
+        assert (
+            hashlib.sha256(
+                (tmp_path / ".local" / (name + "-db-password")).read_bytes()
+            ).hexdigest()
+            == expected_hash
+        )

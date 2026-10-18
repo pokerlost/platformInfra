@@ -27,3 +27,17 @@ Once every private application digest is present, `make deploy-local CLUSTER_NAM
 Before recovery, preserve the current artifact lock, `helm history`, workload status and database backup. Roll back to a previously verified immutable image/chart set with Helm; never assume a schema downgrade is data safe. Website rollout and replica changes do not recreate database PVCs. `make undeploy-local CLUSTER_NAME=...` retains PVCs and Secrets. The local PostgreSQL chart explicitly retains claims after uninstall and scale-down. Deleting an entire disposable Kind cluster removes its local storage, so export acceptance evidence first. No production recovery claim follows from a disposable local fixture.
 
 Keep replica changes in Helm values. With Helm 4 server-side apply, an unrelated `kubectl scale` manager can conflict with later upgrades. Resolve ownership explicitly on the affected local Deployment before continuing; do not enable force replacement or force conflicts globally. Runtime acceptance includes an intentionally unavailable image, observed readiness failure and Helm rollback to the previous working image.
+
+## Local credential and database checks
+
+`make init-local` writes password files without a trailing newline and keeps existing local
+credentials intact. `make kube-secrets` constructs the database URL from the same bytes.
+`make test-database` requires explicit `PLATFORM_TEST_KIND_NAME` and
+`PLATFORM_TEST_KUBECONFIG`, validates a loopback Kind context, and runs bounded native
+PostgreSQL client Jobs using the generated Secret references. Jobs are removed after the
+real TCP query. This checks local database credentials independently of unavailable SDK
+service images. CI performs the same disposable PostgreSQL/Helm acceptance.
+
+Preview mode consistently chooses the explicit local web/gateway tags for both Compose
+and Helm, even when a published registry digest is also recorded. Full mode requires
+the immutable registry pins and fails before startup if any required image is unavailable.

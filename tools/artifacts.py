@@ -65,7 +65,6 @@ def image_ref(name: str, artifact: dict[str, Any], preview: bool) -> str:
             or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
         ):
             raise ValueError("Expected an immutable image digest")
-        return repository + "@" + digest
     if preview and name in {"web", "gateway"}:
         tag = artifact["localTag"]
         if (
@@ -75,6 +74,8 @@ def image_ref(name: str, artifact: dict[str, Any], preview: bool) -> str:
         ):
             raise ValueError("Preview requires an explicit non-latest tag")
         return repository.rsplit("/", 1)[-1] + ":" + tag
+    if digest:
+        return repository + "@" + digest
     raise ValueError(
         f"Unpublished image {name}; private build/OCI acceptance is required"
     )
