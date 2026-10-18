@@ -1,0 +1,26 @@
+name: pokerlost-platform
+x-runtime: &runtime
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+  restart: "no"
+  stop_grace_period: 20s
+services:
+  web:
+    <<: *runtime
+    image: ${WEB_IMAGE:-pokerweb:local-candidate}
+    pull_policy: never
+    networks: [edge]
+  gateway:
+    <<: *runtime
+    image: ${GATEWAY_IMAGE:-pokergateway:candidate}
+    pull_policy: never
+    depends_on:
+      web: {condition: service_healthy}
+    ports: ["127.0.0.1:${HTTP_PORT:-18080}:8080", "127.0.0.1:${HTTPS_PORT:-18443}:8443"]
+    networks: [ingress, edge, foundation]
+networks:
+  ingress: {}
+  edge: {internal: true}
+  foundation: {internal: true}

@@ -1,0 +1,66 @@
+x-runtime: &runtime
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+  restart: "no"
+  stop_grace_period: 20s
+services:
+  auth-db:
+    image: ${POSTGRES_IMAGE:?Run full artifact validation before starting foundations}
+    environment: {POSTGRES_USER: app, POSTGRES_DB: auth, POSTGRES_PASSWORD_FILE: /run/secrets/password}
+    secrets: [{source: auth_password, target: password}]
+    volumes: [auth_data:/var/lib/postgresql/data]
+    healthcheck: {test: [CMD-SHELL, pg_isready -U app -d auth], interval: 2s, timeout: 2s, retries: 30}
+    networks: [foundation]
+  accounts-db:
+    image: ${POSTGRES_IMAGE:?Run full artifact validation before starting foundations}
+    environment: {POSTGRES_USER: app, POSTGRES_DB: accounts, POSTGRES_PASSWORD_FILE: /run/secrets/password}
+    secrets: [{source: accounts_password, target: password}]
+    volumes: [accounts_data:/var/lib/postgresql/data]
+    healthcheck: {test: [CMD-SHELL, pg_isready -U app -d accounts], interval: 2s, timeout: 2s, retries: 30}
+    networks: [foundation]
+  auth-migrate:
+    <<: *runtime
+    image: ${AUTH_IMAGE:?Run full artifact validation before starting foundations}
+    env_file: [{path: .local/auth.env, required: true}]
+    command: [python, -m, alembic, upgrade, head]
+    depends_on: {auth-db: {condition: service_healthy}}
+    networks: [foundation]
+  accounts-migrate:
+    <<: *runtime
+    image: ${ACCOUNTS_IMAGE:?Run full artifact validation before starting foundations}
+    env_file: [{path: .local/accounts.env, required: true}]
+    command: [python, -m, alembic, upgrade, head]
+    depends_on: {accounts-db: {condition: service_healthy}}
+    networks: [foundation]
+  auth:
+    <<: *runtime
+    image: ${AUTH_IMAGE:?Run full artifact validation before starting foundations}
+    env_file: [{path: .local/auth.env, required: true}]
+    depends_on: {auth-migrate: {condition: service_completed_successfully}}
+    networks: [foundation]
+  accounts:
+    <<: *runtime
+    image: ${ACCOUNTS_IMAGE:?Run full artifact validation before starting foundations}
+    env_file: [{path: .local/accounts.env, required: true}]
+    depends_on: {accounts-migrate: {condition: service_completed_successfully}}
+    networks: [foundation]
+  virtual-money:
+    <<: *runtime
+    image: ${VIRTUAL_MONEY_IMAGE:?Run full artifact validation before starting foundations}
+    networks: [foundation]
+  poker:
+    <<: *runtime
+    image: ${POKER_IMAGE:?Run full artifact validation before starting foundations}
+    networks: [foundation]
+  crypto:
+    <<: *runtime
+    image: ${CRYPTO_IMAGE:?Run full artifact validation before starting foundations}
+    networks: [foundation]
+volumes:
+  auth_data:
+  accounts_data:
+secrets:
+  auth_password: {file: .local/auth-db-password}
+  accounts_password: {file: .local/accounts-db-password}

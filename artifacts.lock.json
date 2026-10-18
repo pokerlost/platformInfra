@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "web": {
+      "repository": "ghcr.io/pokerlost/pokerweb",
+      "digest": "",
+      "localTag": "local-098ea1e20b66"
+    },
+    "gateway": {
+      "repository": "ghcr.io/pokerlost/pokergateway",
+      "digest": "",
+      "localTag": "candidate"
+    },
+    "auth": {
+      "repository": "ghcr.io/pokerlost/authservice",
+      "digest": ""
+    },
+    "accounts": {
+      "repository": "ghcr.io/mloso/accountsservice",
+      "digest": ""
+    },
+    "virtual-money": {
+      "repository": "ghcr.io/pokerlost/virtualmoney",
+      "digest": ""
+    },
+    "poker": {
+      "repository": "ghcr.io/pokerlost/pokerservice",
+      "digest": ""
+    },
+    "crypto": {
+      "repository": "ghcr.io/pokerlost/cryptoservice",
+      "digest": ""
+    },
+    "postgres": {
+      "repository": "postgres",
+      "digest": "sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"
+    }
+  },
+  "charts": {
+    "service": {
+      "file": "deploy/charts/fastapi-service-0.2.0-dev.0.tgz",
+      "sha256": "ffcd3ffca8662855314429a5b8493b4153588eaa46b03924a31c4611c0cb59d8",
+      "source": "https://github.com/serrja/fastApiTemplate",
+      "sourceCommit": "512d7b7a4030f6bde210d355f164e59f0a4ec533"
+    },
+    "web": {
+      "file": "deploy/charts/poker-web-0.1.0-dev.0.tgz",
+      "sha256": "bbb4435588bd069a2f2f13fe6c48a68344a0ef3492e53cfe4d3d03fbad282386",
+      "source": "https://github.com/pokerlost/pokerWeb",
+      "sourceCommit": "31cffa183b9dba9d42cef79eb17a36db629ca16e"
+    },
+    "gateway": {
+      "file": "deploy/charts/poker-gateway-0.1.0-dev.0.tgz",
+      "sha256": "08079ef567479b2323c10965061d6bd11dcff1547dfa549fadb2925d8eb11f40",
+      "source": "https://github.com/pokerlost/pokerGateway",
+      "sourceCommit": "013a9b524dd7435f10be1bf6cfc05ab07c21c0cc"
+    }
+  },
+  "game": {
+    "clientCommit": "2f4217da4fdd230857fe2293ae9e2889cf692714",
+    "manifestSha256": "181e7b5181d771331144bcbd02818fd9a2d39c95a10271e9decb17a66b98b6fc",
+    "bridgeVersion": 1,
+    "image": "ghcr.io/pokerlost/poker-game-web@sha256:9eee1b4fe03ec7647674b5ab833f8f9abb2ed8c06235acd255e6f5459cada12a"
+  },
+  "gatewayApi": {
+    "version": "v1.6.3",
+    "file": "deploy/crds/gateway-api-v1.6.3.yaml",
+    "sha256": "356c2b8e286a964dc20995435659ad1095386329974793af10bbfe3eff977fe5",
+    "source": "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml"
+  }
+}
