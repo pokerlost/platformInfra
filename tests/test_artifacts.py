@@ -126,6 +126,8 @@ def test_invalid_inventory(manifest: Path, field: str, value: object) -> None:
         ("bridgeVersion", True),
         ("clientCommit", "main"),
         ("manifestSha256", "latest"),
+        ("image", "ghcr.io/another-owner/game@sha256:" + "a" * 64),
+        ("image", "ghcr.io/pokerlost/poker-game-web:latest"),
     ],
 )
 def test_incompatible_game_identity(manifest: Path, field: str, value: object) -> None:
