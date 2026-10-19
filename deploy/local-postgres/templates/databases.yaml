@@ -1,0 +1,65 @@
+{{- if not .Values.localDevelopment -}}{{ fail "Bundled PostgreSQL is local acceptance only; use managed existing database Secret references elsewhere" }}{{- end -}}
+{{- $root := . -}}
+{{- range $name := list "auth" "accounts" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $root.Values.platformRelease }}-{{ $name }}-db
+spec:
+  clusterIP: None
+  selector: {app.kubernetes.io/instance: "{{ $root.Release.Name }}-{{ $name }}"}
+  ports: [{name: postgres, port: 5432, targetPort: postgres}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $root.Values.platformRelease }}-{{ $name }}-db
+spec:
+  serviceName: {{ $root.Values.platformRelease }}-{{ $name }}-db
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy: {whenDeleted: Retain, whenScaled: Retain}
+  selector:
+    matchLabels: {app.kubernetes.io/instance: "{{ $root.Release.Name }}-{{ $name }}"}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/instance: "{{ $root.Release.Name }}-{{ $name }}"}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: postgres
+          image: {{ required "Pin the PostgreSQL artifact image" $root.Values.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports: [{name: postgres, containerPort: 5432}]
+          securityContext: {readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          env:
+            - {name: POSTGRES_USER, value: app}
+            - {name: POSTGRES_DB, value: {{ $name | quote }}}
+            - {name: POSTGRES_PASSWORD_FILE, value: /run/database/password}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          readinessProbe: {exec: {command: [pg_isready, -U, app, -d, {{ $name }}]}, periodSeconds: 2}
+          livenessProbe: {exec: {command: [pg_isready, -U, app, -d, {{ $name }}]}, initialDelaySeconds: 20, periodSeconds: 5}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: temporary, mountPath: /tmp}
+            - {name: run, mountPath: /var/run/postgresql}
+            - {name: password, mountPath: /run/database, readOnly: true}
+      volumes:
+        - {name: temporary, emptyDir: {medium: Memory, sizeLimit: 16Mi}}
+        - {name: run, emptyDir: {medium: Memory, sizeLimit: 16Mi}}
+        - name: password
+          secret:
+            secretName: {{ $root.Values.platformRelease }}-{{ $name }}-database
+            defaultMode: 0444
+            items: [{key: POSTGRES_PASSWORD, path: password}]
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: {{ $root.Values.storage }}}}
+---
+{{- end }}

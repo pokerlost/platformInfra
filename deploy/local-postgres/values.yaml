@@ -1,0 +1,4 @@
+localDevelopment: false
+platformRelease: platform
+image: ""
+storage: 256Mi

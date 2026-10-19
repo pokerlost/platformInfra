@@ -1,0 +1,49 @@
+[project]
+name = "platform-infra-verification"
+version = "0.1.0.dev0"
+requires-python = ">=3.14"
+dependencies = []
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-cov>=7,<8",
+    "ruff==0.16.4",
+    "mypy>=2.3,<3",
+    "PyYAML>=6,<7",
+    "types-PyYAML>=6,<7",
+    "httpx>=0.28,<1",
+    "typer==0.27.3",
+    "pydantic>=2.12,<3",
+]
+[tool.uv]
+package = false
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers --strict-config --import-mode=importlib"
+[tool.coverage.run]
+branch = true
+source = ["tools"]
+source_pkgs = []
+relative_files = true
+patch = ["subprocess"]
+[tool.coverage.report]
+precision = 2
+fail_under = 0
+show_missing = true
+[tool.coverage.json]
+output = "coverage/python/coverage.json"
+[tool.coverage.xml]
+output = "coverage/python/coverage.xml"
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "N", "RUF", "UP", "TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["tools", "tests"]

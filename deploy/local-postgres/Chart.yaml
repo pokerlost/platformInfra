@@ -1,0 +1,5 @@
+apiVersion: v2
+name: platform-local-postgres
+description: Disposable local-only PostgreSQL persistence for foundation acceptance
+version: 0.1.0-dev.0
+type: application
