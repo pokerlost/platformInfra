@@ -18,6 +18,10 @@ def test_current_secret_authenticates_over_tcp(database: str) -> None:
     assert cluster.startswith("poker-platform-") and config.is_file()
     command = [
         os.environ.get("KUBECTL", "kubectl"),
+        "--cache-dir",
+        os.environ.get(
+            "PLATFORM_TEST_KUBE_CACHE_DIR", str(config.parent / "kubectl-cache")
+        ),
         "--kubeconfig",
         str(config),
         "--context",

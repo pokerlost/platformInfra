@@ -1,3 +1,30 @@
+ifneq ($(CONTAINERIZED),1)
+QUALITY_IMAGE := platforminfra:quality
+RUNTIME_IMAGE := platforminfra:candidate
+COVERAGE_REPORT := coverage/python/coverage.json
+QUALITY_EXTRA_TARGETS := preview-values values test-integration test-database chart-check check-manifest
+VALUES_OUTPUT ?= $(CURDIR)/.local/generated
+QUALITY_RUN_ARGS += --mount "type=bind,source=$(VALUES_OUTPUT),target=/app/.local/generated" --env PLATFORM_TEST_URL
+.PHONY: prepare-values
+prepare-values:
+	@mkdir -p "$(VALUES_OUTPUT)"
+quality-image: prepare-values
+test-integration test-database: QUALITY_NETWORK := host
+test-database: QUALITY_RUN_ARGS += --mount "type=bind,source=$(PLATFORM_TEST_KUBECONFIG),target=/checks/kubeconfig,readonly" --env PLATFORM_TEST_KIND_NAME --env PLATFORM_TEST_KUBECONFIG=/checks/kubeconfig --env PLATFORM_TEST_KUBE_CACHE_DIR=/tmp/platform-kube-cache
+
+BUILD_COMMAND = printf "%s\n" "notApplicable: declarative Compose/Helm sources"
+IMAGE_COMMAND = printf "%s\n" "notApplicable: Compose/Helm consume existing verified images"
+VERIFY_COMMAND = $(MAKE) test-integration
+include docker/quality-python.mk
+.PHONY: up preview down status logs init-local cluster local-context gateway-api deploy-preview deploy-local kube-secrets undeploy-local config-check
+up deploy-local: values
+preview down status logs deploy-preview config-check: preview-values
+preview deploy-preview up deploy-local gateway-api: check-manifest
+up preview down status logs init-local cluster local-context gateway-api deploy-preview deploy-local kube-secrets undeploy-local config-check:
+	$(MAKE) CONTAINERIZED=1 $@
+config-check: chart-check
+
+else
 .DEFAULT_GOAL := help
 UV ?= uv
 DOCKER ?= docker
@@ -36,16 +63,16 @@ values:
 	$(UV) run --locked python -m tools.artifacts --output $(VALUES_DIR) --release $(RELEASE) --namespace $(NAMESPACE)
 preview-values:
 	$(UV) run --locked python -m tools.artifacts --output $(VALUES_DIR) --preview --release $(RELEASE) --namespace $(NAMESPACE)
-up: values
+up:
 	$(MAKE) init-local
 	$(COMPOSE) --file compose.foundation.yaml up --detach --wait --wait-timeout 180
-preview: preview-values
+preview:
 	$(COMPOSE) up --detach --wait --wait-timeout 60
-down: preview-values
+down:
 	$(COMPOSE) down --remove-orphans
-status: preview-values
+status:
 	$(COMPOSE) ps --all
-logs: preview-values
+logs:
 	$(COMPOSE) logs --tail 100
 init-local:
 	@install -d -m 700 .local
@@ -65,13 +92,12 @@ local-context:
 	@chmod 600 $(LOCAL_KUBECONFIG)
 	@case "$$($(KUBE_LOCAL) config view --minify -o 'jsonpath={.clusters[0].cluster.server}')" in https://127.0.0.1:*|https://localhost:*) ;; *) echo 'Remote cluster forbidden'; exit 1;; esac
 gateway-api: local-context
-	$(UV) run --locked python -c "from tools.artifacts import load_manifest; from pathlib import Path; load_manifest(Path('artifacts.lock.json'))"
 	$(KUBE_LOCAL) apply -f deploy/crds/gateway-api-v1.6.3.yaml
 	$(KUBE_LOCAL) create namespace $(NAMESPACE) --dry-run=client -o yaml | $(KUBE_LOCAL) apply -f -
-deploy-preview: preview-values gateway-api
+deploy-preview: gateway-api
 	$(HELM_LOCAL) upgrade --install $(RELEASE)-web $(VALUES_DIR)/charts/web.tgz --values $(VALUES_DIR)/web.values.json $(HELM_FLAGS)
 	$(HELM_LOCAL) upgrade --install $(RELEASE)-gateway $(VALUES_DIR)/charts/gateway.tgz --values $(VALUES_DIR)/gateway.values.json $(HELM_FLAGS)
-deploy-local: values gateway-api
+deploy-local: gateway-api
 	$(MAKE) kube-secrets
 	$(HELM_LOCAL) upgrade --install $(RELEASE)-databases deploy/local-postgres --values $(VALUES_DIR)/postgres.values.json $(HELM_FLAGS)
 	$(HELM_LOCAL) upgrade --install $(RELEASE)-auth $(VALUES_DIR)/charts/service.tgz --values $(VALUES_DIR)/auth.values.json $(HELM_FLAGS)
@@ -90,3 +116,15 @@ kube-secrets: init-local local-context
 undeploy-local: local-context
 	$(HELM_LOCAL) uninstall $(RELEASE)-gateway $(RELEASE)-web $(RELEASE)-auth $(RELEASE)-accounts $(RELEASE)-virtual-money $(RELEASE)-poker $(RELEASE)-crypto $(RELEASE)-databases --namespace $(NAMESPACE) --ignore-not-found --wait
 	@echo "Database PVCs and existing Secrets are retained."
+
+.PHONY: check-manifest chart-check config-check
+check-manifest:
+	$(UV) run --locked python -c "from tools.artifacts import load_manifest; from pathlib import Path; load_manifest(Path('artifacts.lock.json'))"
+chart-check:
+	$(HELM) lint .local/generated/charts/web.tgz --strict --values .local/generated/web.values.json
+	$(HELM) lint .local/generated/charts/gateway.tgz --strict --values .local/generated/gateway.values.json
+	$(HELM) lint deploy/local-postgres --strict --set localDevelopment=true --set image=postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+config-check:
+	$(DOCKER) compose --project-name infra-validation --file compose.yaml --env-file $(VALUES_DIR)/compose.env config --quiet
+
+endif
