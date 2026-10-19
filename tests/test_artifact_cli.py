@@ -3,18 +3,33 @@
 import json
 from pathlib import Path
 
+import pytest
 from pytest import MonkeyPatch
+from rich.text import Text
 from typer.testing import CliRunner
 
 from tools.artifact_models import ArtifactManifest
 from tools.artifacts import app
 
 
-def test_help_has_no_side_effects(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+@pytest.mark.parametrize("color", [False, True])
+def test_help_has_no_side_effects(
+    tmp_path: Path, monkeypatch: MonkeyPatch, color: bool
+) -> None:
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(app, ["--help"])
+    result = CliRunner().invoke(
+        app,
+        ["--help"],
+        color=color,
+        env={
+            "CI": "true",
+            "GITHUB_ACTIONS": "true",
+            "FORCE_COLOR": "1" if color else None,
+            "NO_COLOR": None if color else "1",
+        },
+    )
     assert result.exit_code == 0
-    assert "--manifest" in result.stdout
+    assert "--manifest" in Text.from_ansi(result.stdout).plain
     assert not result.stderr
     assert not list(tmp_path.iterdir())
 
