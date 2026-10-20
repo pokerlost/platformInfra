@@ -1,6 +1,10 @@
+ifeq ($(OFFLINE),1)
+export UV_OFFLINE := 1
+endif
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 ifneq ($(CONTAINERIZED),1)
+QUALITY_DIST_MOUNT = --mount "type=bind,source=$(CURDIR)/dist,target=/app/dist,readonly"
 QUALITY_IMAGE := platforminfra:quality
 RUNTIME_IMAGE := platforminfra:candidate
 COVERAGE_REPORT := coverage/python/coverage.json
@@ -14,15 +18,25 @@ QUALITY_RUN_ARGS += --mount "type=bind,source=$(VALUES_OUTPUT),target=/app/.loca
 QUALITY_RUN_ARGS += --env PLATFORM_SOURCE_ROOT=/source-checkouts
 .PHONY: prepare-values
 prepare-values:
-	@mkdir -p "$(VALUES_OUTPUT)"
+	@mkdir -p "$(VALUES_OUTPUT)" dist
 quality-image: prepare-values
 test-integration test-database: QUALITY_NETWORK := host
 test-database: QUALITY_RUN_ARGS += --mount "type=bind,source=$(PLATFORM_TEST_KUBECONFIG),target=/checks/kubeconfig,readonly" --env PLATFORM_TEST_KIND_NAME --env PLATFORM_TEST_KUBECONFIG=/checks/kubeconfig --env PLATFORM_TEST_KUBE_CACHE_DIR=/tmp/platform-kube-cache
 
-BUILD_COMMAND = printf "%s\n" "notApplicable: declarative Compose/Helm sources"
+COMPOSITION_VERSION = $(shell cat VERSION)
+BUILD_COMMAND = test -z "$$(git status --porcelain)" && mkdir -p dist coverage && git archive --format=tar --prefix=platform-infra-$(COMPOSITION_VERSION)/ HEAD | gzip --no-name > dist/platform-infra-$(COMPOSITION_VERSION).tar.gz && git rev-parse HEAD > coverage/composition-source.txt
 IMAGE_COMMAND = printf "%s\n" "notApplicable: Compose/Helm consume existing verified images"
-VERIFY_COMMAND = $(MAKE) test-integration
+VERIFY_COMMAND = $(MAKE) config-check test-database-local
+BUILD_RECEIPT_COMMAND := true
+VERSION_COMMAND = $(QUALITY_RUN) python -m tools.composition_version version
+RELEASE_CHECK_COMMAND = test "$$(sha256sum dist/platform-infra-$(COMPOSITION_VERSION).tar.gz | cut -d " " -f 1)" = "$$(git archive --format=tar --prefix=platform-infra-$(COMPOSITION_VERSION)/ HEAD | gzip --no-name | sha256sum | cut -d " " -f 1)" && $(QUALITY_RUN) python -m tools.composition_version release-check
+RECEIPT_COMMAND = $(QUALITY_RUN) python docker/release.py receipt
+OFFLINE_PREFLIGHT_COMMAND = command -v kind helm kubectl >/dev/null && $(DOCKER) image inspect postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 >/dev/null || { echo "BLOCKED: prepare pinned database/Kind images and tools online first." >&2; exit 2; }
+CI_LOCAL_TARGETS := check coverage build verify release-check
 include docker/quality-python.mk
+.PHONY: test-database-local
+test-database-local:
+	/bin/bash docker/verify-database.sh
 
 else
 .DEFAULT_GOAL := help
@@ -52,7 +66,7 @@ lint:
 typecheck:
 	$(UV) run --locked mypy
 test-unit:
-	$(UV) run --locked pytest --cov --cov-report=term-missing --cov-report=json --cov-report=xml
+	$(UV) run --locked pytest --junitxml=coverage/unit.xml --cov --cov-report=term-missing --cov-report=json --cov-report=xml
 test: test-unit
 test-integration:
 	$(UV) run --locked pytest tests/platform_integration.py --junitxml=coverage/platform.xml

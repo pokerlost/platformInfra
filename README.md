@@ -35,3 +35,8 @@ settings are prepared configuration only. See the guides before selecting paths.
 Original source and documentation use [MIT](LICENSE). Preserve the
 [third-party notices](THIRD_PARTY_NOTICES.md) and bundled upstream license texts.
 Dependency licenses and private-data access do not change with this license.
+
+Run `make help` for native tasks, `make version` for canonical artifact versions,
+and `make ci-local` for the local required checks and `coverage/ci-local.json`.
+`make release-check` validates built artifact identity; it does not publish or tag.
+See [version and release policy](docs/versioning.md).

@@ -32,7 +32,7 @@ jobs:
           cache-from: type=gha,scope=${{ github.repository_id }}-quality-python314-linux-amd64-${{ github.event_name == 'pull_request' && 'review' || 'trusted' }}
           cache-to: type=gha,mode=max,scope=${{ github.repository_id }}-quality-python314-linux-amd64-${{ github.event_name == 'pull_request' && 'review' || 'trusted' }}
       - name: Fresh adapter checks and Compose/Helm validation
-        run: make check config-check
+        run: make ci-local CI_LOCAL_TARGETS="check coverage build config-check release-check"
       - run: cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -63,18 +63,7 @@ jobs:
           cache-from: type=gha,scope=${{ github.repository_id }}-quality-python314-linux-amd64-${{ github.event_name == 'pull_request' && 'review' || 'trusted' }}
           cache-to: type=gha,mode=max,scope=${{ github.repository_id }}-quality-python314-linux-amd64-${{ github.event_name == 'pull_request' && 'review' || 'trusted' }}
       - name: Native Helm PostgreSQL and real TCP authentication with generated Secrets
-        run: |
-          set -euo pipefail
-          cluster="poker-platform-db-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          config="$RUNNER_TEMP/infra-database.kubeconfig"
-          docker pull postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
-          docker tag postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 foundation-postgres:local-2d2b8998d310
-          kind create cluster --name "$cluster" --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 --kubeconfig "$config" --wait 120s
-          kind load docker-image foundation-postgres:local-2d2b8998d310 --name "$cluster"
-          kubectl --kubeconfig "$config" --context "kind-$cluster" create namespace foundation
-          make kube-secrets CLUSTER_NAME="$cluster" LOCAL_KUBECONFIG="$config"
-          helm upgrade --install platform-databases deploy/local-postgres --kubeconfig "$config" --kube-context "kind-$cluster" --namespace foundation --set localDevelopment=true --set image=foundation-postgres:local-2d2b8998d310 --wait --timeout 180s
-          PLATFORM_TEST_KIND_NAME="$cluster" PLATFORM_TEST_KUBECONFIG="$config" make test-database
+        run: make test-database-local
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -82,9 +71,6 @@ jobs:
           path: coverage/postgres.xml
           retention-days: 14
           if-no-files-found: error
-      - name: Delete only this run's local Kind cluster
-        if: always()
-        run: kind delete cluster --name "poker-platform-db-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
   required:
     if: always()
     needs: [infrastructure, database]

@@ -17,6 +17,7 @@ dev = [
     "typer==0.27.3",
     "pydantic>=2.12,<3",
     "pydantic-settings>=2.12,<3",
+    "packaging>=25,<27",
 ]
 [tool.uv]
 package = false
