@@ -5,11 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sys
 import tarfile
 import tomllib
 from pathlib import Path
 from typing import Any
+
+import typer
+
+app = typer.Typer(no_args_is_help=True)
 
 
 def versions() -> dict[str, Any]:
@@ -37,6 +40,7 @@ def versions() -> dict[str, Any]:
     }
 
 
+@app.command("release-check")
 def release_check() -> None:
     expected = versions()
     source = json.loads(Path("coverage/source.json").read_text())
@@ -72,10 +76,11 @@ def release_check() -> None:
     print("Composition version, archived manifest and source identity agree.")
 
 
+@app.command("version")
+def show_version() -> None:
+    """Show native composition, verification and component identities."""
+    typer.echo(json.dumps(versions(), indent=2))
+
+
 if __name__ == "__main__":
-    if sys.argv[1] == "version":
-        print(json.dumps(versions(), indent=2))
-    elif sys.argv[1] == "release-check":
-        release_check()
-    else:
-        raise ValueError("Expected version or release-check")
+    app()
