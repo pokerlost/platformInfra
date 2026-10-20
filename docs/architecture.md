@@ -1,11 +1,61 @@
 # Architecture
 
-The Vue/TypeScript website serves one immutable Flutter web build produced by the Dart-only pokerClient workspace. Its `make export-web` command uses the pinned Flutter SDK and Dart checksum tool, with no Python template or project environment. The native client and that build use the same Dart contract and Flutter gameplay package. pokerengine remains the authoritative C++ engine with its Python binding; the SDK does not become a second engine. The preview is synthetic and public only. A production gameplay transport is not implemented by infrastructure.
+[Home](../README.md) · [Deployment](deployment.md) · [Observability](observability.md)
 
-Traefik OSS terminates the gateway and selects the website or one of five foundation HTTP services. Service-specific prefixes are stripped once. Unknown API and realtime requests return an error rather than the SPA. TLS uses an existing certificate Secret in Kubernetes and explicit certificate files in Compose. No dashboard, Docker provider, application-start endpoint or blanket mutation retry is enabled.
+```mermaid
+flowchart LR
+  B[Browser] --> G[Traefik gateway]
+  G --> W[Nginx and Vue]
+  W --> F[Versioned Flutter web bundle]
+  G --> A[Five foundation APIs]
+  A --> D[Auth and accounts PostgreSQL]
+  A --> P[Prometheus]
+  G --> P
+  A --> C[Alloy]
+  G --> C
+  W --> C
+  C --> L[Loki]
+  P --> R[Grafana]
+  L --> R
+```
 
-`artifacts.lock.json` is the compatibility boundary: immutable images, checksum-verified owner chart packages, client source SHA, Flutter manifest hash and bridge version. `tools/artifacts.py` validates those inputs and writes values. It never runs a shell, Git, Docker, Helm, kubectl or an application. Native Make targets invoke Compose and Helm directly. Source checkout inventory belongs to setupSystem; this repository does not maintain another copy.
+ASCII: browser -> Traefik -> Nginx/Vue + Flutter, or selected foundation API.
+Auth/accounts -> their own PostgreSQL. Prometheus scrapes API/gateway/collector
+metrics; Alloy receives bounded stdout logs and sends them to Loki. Grafana queries
+Prometheus and Loki. No monitoring component controls application processes.
 
-The generic service chart belongs to fastApiTemplate, the gateway chart to pokerGateway, and the static website chart to pokerWeb. Refresh packages from a reviewed owner commit, record its full SHA and verify the archive hash. Do not edit a vendored chart in place. Common engineering rules belong to pythonTemplate and CI tool installers to fastApiTemplate.
+## Ownership
 
-Only authService and accountsService use PostgreSQL and a migration Job, using the same application image as the service. Other foundation services receive no database configuration. Existing database Secrets are references, not secret values. The bundled PostgreSQL chart is an explicitly local acceptance fixture with retained PVCs, not a production database offering.
+| Owner | Contract |
+| --- | --- |
+| baseRules / projectRules | Selected public norms; no endpoints, grants or runtime |
+| pythonTemplate | Python packaging, quality and optional generated-project license |
+| typerTemplate / fastApiTemplate | Native CLI / ASGI settings, instrumentation, logging and service chart |
+| serviceTemplate | Pokerlost service identity, HTTP operations and SDK acquisition |
+| pypokerlost | Public Python API, exact typed service IDs and TS/Dart generator |
+| pokerGateway | Traefik HTTP selection, boundary validation and gateway chart |
+| pokerWeb | Static Nginx, Vue lifecycle and website chart |
+| pokerClient | Dart transport, shared Flutter UI and immutable web artifact |
+| platformInfra | One artifact lock, environment values, composition, storage and observability |
+| pokerengine | C++20 authority, Python binding and loopback console demo |
+| Obsidian / Drive | Private knowledge/navigation / native collaborative documents |
+
+HTTP uses one gateway origin and an operation path such as `/getOpenApi`.
+`x-pokerlost-serviceId` is validated before a fixed named upstream is selected.
+Values are exact and case sensitive; field names follow HTTP case insensitivity.
+There is no service-prefix fallback or raw-header-derived URL. Known static paths
+load without a service header; unknown API paths never fall back to HTML. Gateway
+and backend preserve one validated `X-Request-ID`. Backend authorization still
+owns bearer audience/scopes. Browser realtime is planned: a browser WebSocket
+cannot set the custom HTTP header. See the [gateway contract](https://github.com/pokerlost/pokerGateway).
+
+Only authService and accountsService have PostgreSQL and one-shot same-image
+migration containers. Other foundations have no database settings. Historical
+revisions remain intact. The local PostgreSQL chart is a disposable acceptance
+fixture with retained PVCs, not a production database service.
+
+`tools/environment.py` validates settings and writes data; `tools/artifacts.py`
+validates artifact compatibility and owner packages. Neither launches commands.
+Make invokes native Compose/Helm directly. Images, source commits, chart checksums,
+SDK pins and the Flutter bridge are separate identities. SetupSystem remains the
+source-checkout catalog owner; this repo does not add another inventory service.

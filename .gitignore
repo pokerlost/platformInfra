@@ -17,3 +17,5 @@ dist/
 backups/
 core.[0-9]*
 .vscode/
+
+!.env.example

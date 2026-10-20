@@ -89,6 +89,11 @@ def emit(
         f"{name.upper().replace('-', '_')}_IMAGE={value}"
         for name, value in references.items()
     ]
+    if not preview:
+        lines.extend(
+            f"{name.upper()}_IMAGE={value}"
+            for name, value in data.get("observability", {}).items()
+        )
     (output / "compose.env").write_text("\n".join(lines) + "\n")
     for name in selected:
         if name == "gateway":
@@ -137,6 +142,18 @@ def emit(
         (output / (name + ".values.json")).write_text(
             json.dumps(values, indent=2) + "\n"
         )
+    gateway_artifact = data["images"]["gateway"]
+    gateway_image = {
+        "repository": gateway_artifact["repository"],
+        "tag": "",
+        "digest": gateway_artifact.get("digest") or None,
+    }
+    if preview:
+        gateway_image = {
+            "repository": gateway_artifact["repository"].rsplit("/", 1)[-1],
+            "tag": gateway_artifact["localTag"],
+            "digest": None,
+        }
     gateway: dict[str, Any] = {
         "localDevelopment": True,
         "webService": release + "-web",
@@ -151,6 +168,8 @@ def emit(
             }.items()
         },
         "traefik": {
+            "image": gateway_image,
+            "versionOverride": "v3.7.15",
             "service": {"spec": {"type": "NodePort"}},
             "providers": {
                 "kubernetesCRD": {"namespaces": [namespace]},

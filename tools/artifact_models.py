@@ -24,6 +24,10 @@ class ImageArtifact(BaseModel):
         ),
     ]
     digest: Annotated[str, Field(pattern=r"^(?:sha256:[0-9a-f]{64})?$")] = ""
+    source_commit: Commit | None = Field(default=None, alias="sourceCommit")
+    source_date_epoch: Annotated[int | None, Field(strict=True, ge=0)] = Field(
+        default=None, alias="sourceDateEpoch"
+    )
     local_tag: Annotated[str | None, Field(pattern=r"^[a-z0-9][a-z0-9_.-]*$")] = Field(
         default=None, alias="localTag"
     )
@@ -56,12 +60,21 @@ class GameArtifact(BaseModel):
 
 
 class ArtifactManifest(BaseModel):
-    """Closed manifest schema v1, owned by platformInfra."""
+    """Versioned inventory; v2 adds a closed, digest-pinned monitoring stack."""
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
-    schema_version: Annotated[int, Field(strict=True, ge=1, le=1)] = Field(
+    schema_version: Annotated[int, Field(strict=True, ge=1, le=2)] = Field(
         alias="schemaVersion"
     )
+    observability: dict[
+        str,
+        Annotated[
+            str,
+            Field(
+                pattern=r"^(?:prom/prometheus:v[0-9.]+|grafana/grafana:[0-9.]+|grafana/loki:[0-9.]+|grafana/alloy:v[0-9.]+)@sha256:[0-9a-f]{64}$"
+            ),
+        ],
+    ] = Field(default_factory=dict)
     images: dict[str, ImageArtifact]
     charts: dict[str, VendoredArtifact]
     game: GameArtifact
@@ -71,6 +84,15 @@ class ArtifactManifest(BaseModel):
     def validate_inventory(self) -> ArtifactManifest:
         if set(self.images) != EXPECTED_IMAGES or set(self.charts) != EXPECTED_CHARTS:
             raise ValueError("Unsupported artifact inventory")
+        if self.schema_version == 2 and set(self.observability) != {
+            "prometheus",
+            "grafana",
+            "loki",
+            "alloy",
+        }:
+            raise ValueError("Schema v2 requires the complete monitoring inventory")
+        if self.schema_version == 1 and self.observability:
+            raise ValueError("Monitoring requires schema v2")
         return self
 
 

@@ -47,6 +47,6 @@ def test_database_migrations_and_storage_belong_only_to_database_services() -> N
     for service in services.values():
         assert "ports" not in service
     makefile = (ROOT / "Makefile").read_text()
-    assert "down --remove-orphans" in makefile and "down --volumes" not in makefile
+    assert "down --remove-orphans" not in makefile and "down --volumes" not in makefile
     assert "--kubeconfig $(LOCAL_KUBECONFIG)" in makefile
     assert "Remote cluster forbidden" in makefile

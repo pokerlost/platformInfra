@@ -1,0 +1,126 @@
+x-log-options: &log-options
+    syslog-address: udp://127.0.0.1:${SYSLOG_PORT:-15140}
+    syslog-format: rfc5424micro
+    mode: non-blocking
+    max-buffer-size: 1m
+    cache-max-size: 2m
+    cache-max-file: "2"
+x-logs: &logs
+  driver: syslog
+  options: *log-options
+x-monitor: &monitor
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+  restart: unless-stopped
+  logging: {driver: local, options: {max-size: 2m, max-file: "2"}}
+  networks: [observability, management]
+services:
+  auth:
+    logging: {<<: *logs, options: {<<: *log-options, tag: authService}}
+  accounts:
+    logging: {<<: *logs, options: {<<: *log-options, tag: accountsService}}
+  virtual-money:
+    logging: {<<: *logs, options: {<<: *log-options, tag: virtualMoney}}
+  poker:
+    logging: {<<: *logs, options: {<<: *log-options, tag: pokerService}}
+  crypto:
+    logging: {<<: *logs, options: {<<: *log-options, tag: cryptoService}}
+  gateway:
+    healthcheck: {start_period: 60s, retries: 30}
+    volumes: ["${PLATFORM_CONFIG_DIR:?Validate the plan}/gateway-upstreams.yaml:/etc/traefik/dynamic/upstreams.yaml:ro"]
+    networks: [ingress, edge, foundation, observability]
+    logging: {<<: *logs, options: {<<: *log-options, tag: pokerGateway}}
+  web:
+    volumes: ["${PLATFORM_CONFIG_DIR:?Validate the plan}/web-environment.conf:/etc/nginx/pokerlost/environment.conf:ro"]
+    logging: {<<: *logs, options: {<<: *log-options, tag: pokerWeb}}
+  prometheus:
+    <<: *monitor
+    image: ${PROMETHEUS_IMAGE:?Validate artifact pins first}
+    mem_limit: 512m
+    cpus: 1
+    command: [--web.enable-remote-write-receiver, --config.file=/etc/prometheus/prometheus.yaml, --storage.tsdb.path=/prometheus, "--storage.tsdb.retention.time=${PLATFORM_METRICS_RETENTION_DAYS:-15}d", "--storage.tsdb.retention.size=${PLATFORM_METRICS_RETENTION_MB:-2048}MB", --storage.tsdb.wal-compression]
+    volumes:
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/alerts.yaml:/etc/prometheus/alerts.yaml:ro
+      - prometheus_data:/prometheus
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-19090}:9090"]
+    networks: [foundation, observability, management]
+    healthcheck: {test: [CMD, promtool, check, ready, --url=http://localhost:9090], interval: 5s, timeout: 3s, retries: 30}
+  loki:
+    <<: *monitor
+    image: ${LOKI_IMAGE:?Validate artifact pins first}
+    mem_limit: 512m
+    cpus: 1
+    command: [-config.file=/etc/loki/local.yaml]
+    volumes:
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/loki.yaml:/etc/loki/local.yaml:ro
+      - loki_data:/loki
+    ports: ["127.0.0.1:${LOKI_PORT:-13100}:3100"]
+  alloy:
+    <<: *monitor
+    networks: [foundation, observability, management]
+    image: ${ALLOY_IMAGE:?Validate artifact pins first}
+    environment: {PLATFORM_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}"}
+    user: "65532:65532"
+    mem_limit: 256m
+    cpus: 0.5
+    command: [run, /etc/alloy/config.alloy, --storage.path=/tmp/alloy, --server.http.listen-addr=0.0.0.0:12345, --disable-reporting]
+    volumes: ["${PLATFORM_CONFIG_DIR:?Validate the plan}/alloy.alloy:/etc/alloy/config.alloy:ro"]
+    ports: ["127.0.0.1:${SYSLOG_PORT:-15140}:1514/udp", "127.0.0.1:${ALLOY_PORT:-12345}:12345"]
+    depends_on: [loki]
+  grafana-secrets:
+    image: ${GRAFANA_IMAGE:?Validate artifact pins first}
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.25
+    secrets: [{source: grafana_password, target: input_password}]
+    volumes: [grafana_secret:/output]
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        umask 077
+        if ! test -e /output/admin_password; then cp /run/secrets/input_password /output/admin_password; fi
+        cmp -s /run/secrets/input_password /output/admin_password || { echo 'Grafana secret rotation requires explicit recovery' >&2; exit 1; }
+        chown 0:0 /output/admin_password
+        chmod 400 /output/admin_password
+        chown 472:472 /output/admin_password
+  grafana:
+    <<: *monitor
+    image: ${GRAFANA_IMAGE:?Validate artifact pins first}
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      GF_SECURITY_ADMIN_USER: operator
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/local-secret/admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    depends_on: {grafana-secrets: {condition: service_completed_successfully}}
+    volumes:
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/pokerlost.yaml:ro
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/pokerlost.yaml:ro
+      - ${PLATFORM_CONFIG_DIR:?Validate the plan}/dashboard.json:/etc/grafana/dashboards/pokerlost.json:ro
+      - grafana_data:/var/lib/grafana
+      - grafana_secret:/run/local-secret:ro
+    ports: ["127.0.0.1:${GRAFANA_PORT:-13000}:3000"]
+    healthcheck: {test: [CMD, wget, -q, -O, /dev/null, http://localhost:3000/api/health], interval: 5s, timeout: 3s, retries: 30}
+networks:
+  observability: {internal: true}
+  management: {}
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  grafana_secret:
+secrets:
+  grafana_password: {file: "${PLATFORM_SECRET_DIR:?Set a private directory outside the checkout}/grafana-admin-password"}

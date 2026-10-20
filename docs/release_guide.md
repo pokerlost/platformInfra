@@ -1,9 +1,23 @@
-# Release guide
+# Delivery boundaries
 
-This change prepares development delivery only. Merge, tag, release and production deployment require a separate instruction.
+[Home](../README.md) · [Versioning](versioning.md) · [Operations](operations.md)
 
-Before an approved release, require green owner source/installed-artifact tests and valid whole-source language coverage reports with advisory percentages, exact private OCI digest provenance, private Actions package access, reviewed owner chart source SHAs, manifest/bootstrap hashes and actual browser/gateway acceptance. Full platform acceptance additionally requires owner-admitted private SDK acquisition, every service image, PostgreSQL migrations, failure recovery, storage retention and verified TLS. A static chart render or preview is not full platform acceptance.
+Checks, installed-artifact tests, build, artifacts, publish and deploy are separate
+stages. BuildKit caches use target/platform/trust scopes; test results execute
+fresh. Secret values never form cache keys or artifact contents. Exact tested
+image IDs/source receipts gate promotion; deployment selects built artifacts and
+does not rebuild. The SDK App remains SDK-only read and short lived, with exact
+reviewed-source/trusted-workflow admission and no dependency on an open PR 1.
 
-Record actual CI URLs, immutable artifacts, language denominators and remaining blockers in the PR. Do not add runtime excludes, remove defensive guards, accept skipped tests as passing or use a cached test layer to claim fresh execution. Retain only task-owned test logs and synthetic fixtures. Verify package/cache visibility before publication; do not make a package public to solve an Actions access failure.
+Current task permission covers reviewed commits/PR/merge and existing agreed
+private artifact destinations. It does not permit a new registry namespace/ACL,
+App expansion, release/tag, external DNS/listener or production deployment.
+Keep private code/images private. Missing private pull access is a precise blocker
+for registry mode, not a reason to widen access or fake a digest.
 
-For rollback, select the previously verified manifest and owner charts, assess schema compatibility, preserve database backups and run native Helm/Compose commands in the explicitly authorized environment. Never automatically downgrade historical migrations or delete storage.
+Before any later release require current source/installed-wheel checks, real
+proxy/browser acceptance, valid coverage reports (percentages warn), actual
+manifest/image/chart/bridge identities, DB migration/recovery evidence and real
+Prometheus/Loki/Grafana data. Local HTTP and technical fixtures do not establish
+production TLS, gameplay or payments. Preserve old refs, backup and rollback
+artifacts. Cleanup only task-owned ephemeral resources; never prune shared data.

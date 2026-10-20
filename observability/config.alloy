@@ -1,0 +1,153 @@
+logging {
+  level = "info"
+  format = "json"
+}
+
+loki.relabel "services" {
+  forward_to = []
+  rule {
+    source_labels = ["__syslog_message_app_name"]
+    regex = "authService|accountsService|virtualMoney|pokerService|cryptoService|pokerGateway|pokerWeb"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__syslog_message_app_name"]
+    target_label = "service_id"
+  }
+}
+
+loki.source.syslog "containers" {
+  listener {
+    address = "0.0.0.0:1514"
+    protocol = "udp"
+    syslog_format = "rfc5424"
+    labels = { environment = sys.env("PLATFORM_ENVIRONMENT") }
+  }
+  relabel_rules = loki.relabel.services.rules
+  forward_to = [loki.process.correlation.receiver]
+}
+
+loki.process "correlation" {
+  stage.json {
+    expressions = {
+      backend_request_id = "request_id",
+      backend_time = "time",
+      edge_time = "StartUTC",
+      level = "level",
+      edge_request_id = "\"downstream_X-Request-Id\"",
+    }
+  }
+  // Search uses the validated downstream ID, never the original client field.
+  stage.replace {
+    expression = "\"request_X-Request-Id\":\"((?:[^\"\\\\]|\\\\.)*)\""
+    replace = "REDACTED"
+  }
+  stage.template {
+    source = "request_id"
+    template = "{{ if .backend_request_id }}{{ .backend_request_id }}{{ else if .edge_request_id }}{{ .edge_request_id }}{{ end }}"
+  }
+  stage.template {
+    source = "event_time"
+    template = "{{ if .backend_time }}{{ .backend_time }}{{ else if .edge_time }}{{ .edge_time }}{{ end }}"
+  }
+  stage.timestamp {
+    source = "event_time"
+    format = "RFC3339Nano"
+    action_on_failure = "skip"
+  }
+  stage.template {
+    source = "level"
+    template = "{{ if .level }}{{ .level }}{{ else }}INFO{{ end }}"
+  }
+  stage.structured_metadata {
+    values = { request_id = "", level = "" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+}
+
+// Supported embedded blackbox exporter; only fixed internal health targets.
+prometheus.exporter.blackbox "health" {
+  config = "{ modules: { http_2xx: { prober: http, timeout: 2s } } }"
+  target {
+    name = "authService_live"
+    address = "http://auth:8000/health/live"
+    module = "http_2xx"
+    labels = { service_id = "authService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "live" }
+  }
+  target {
+    name = "authService_ready"
+    address = "http://auth:8000/health/ready"
+    module = "http_2xx"
+    labels = { service_id = "authService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "ready" }
+  }
+  target {
+    name = "accountsService_live"
+    address = "http://accounts:8000/health/live"
+    module = "http_2xx"
+    labels = { service_id = "accountsService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "live" }
+  }
+  target {
+    name = "accountsService_ready"
+    address = "http://accounts:8000/health/ready"
+    module = "http_2xx"
+    labels = { service_id = "accountsService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "ready" }
+  }
+  target {
+    name = "virtualMoney_live"
+    address = "http://virtual-money:8000/health/live"
+    module = "http_2xx"
+    labels = { service_id = "virtualMoney", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "live" }
+  }
+  target {
+    name = "virtualMoney_ready"
+    address = "http://virtual-money:8000/health/ready"
+    module = "http_2xx"
+    labels = { service_id = "virtualMoney", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "ready" }
+  }
+  target {
+    name = "pokerService_live"
+    address = "http://poker:8000/health/live"
+    module = "http_2xx"
+    labels = { service_id = "pokerService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "live" }
+  }
+  target {
+    name = "pokerService_ready"
+    address = "http://poker:8000/health/ready"
+    module = "http_2xx"
+    labels = { service_id = "pokerService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "ready" }
+  }
+  target {
+    name = "cryptoService_live"
+    address = "http://crypto:8000/health/live"
+    module = "http_2xx"
+    labels = { service_id = "cryptoService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "live" }
+  }
+  target {
+    name = "cryptoService_ready"
+    address = "http://crypto:8000/health/ready"
+    module = "http_2xx"
+    labels = { service_id = "cryptoService", environment = sys.env("PLATFORM_ENVIRONMENT"), probe_kind = "ready" }
+  }
+}
+prometheus.scrape "health" {
+  targets = prometheus.exporter.blackbox.health.targets
+  scrape_interval = "5s"
+  scrape_timeout = "3s"
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+    queue_config {
+      min_shards = 1
+      max_shards = 1
+      capacity = 1000
+      max_samples_per_send = 500
+      batch_send_deadline = "5s"
+    }
+  }
+}

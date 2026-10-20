@@ -26,7 +26,11 @@ def client() -> Iterator[httpx.Client]:
 
 
 def test_routes_security_and_real_flutter_identity(client: httpx.Client) -> None:
-    lock = json.loads((ROOT / "artifacts.lock.json").read_text())
+    lock = json.loads(
+        Path(
+            os.environ.get("PLATFORM_TEST_MANIFEST", str(ROOT / "artifacts.lock.json"))
+        ).read_text()
+    )
     for path in ("/", "/game", "/game/", "/about"):
         response = client.get(path)
         assert response.status_code == 200
@@ -50,7 +54,9 @@ def test_routes_security_and_real_flutter_identity(client: httpx.Client) -> None
         hashlib.sha256(bootstrap.content).hexdigest()
         == manifest.json()["files"]["flutter_bootstrap.js"]
     )
-    assert client.get("/healthz").status_code == 200
+    assert client.get("/healthz").status_code == 404
+    for path in ("/metrics", "/health/live", "/health/ready"):
+        assert client.get(path).status_code == 404
 
 
 @pytest.mark.parametrize("path", ["/api/unknown", "/realtime", "/game/missing/file.js"])

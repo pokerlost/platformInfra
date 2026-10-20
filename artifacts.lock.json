@@ -1,35 +1,44 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "images": {
     "web": {
       "repository": "ghcr.io/pokerlost/pokerweb",
       "digest": "",
-      "localTag": "local-cbde15a8b4e8"
+      "localTag": "local-e3b240c878c0-e1792466766",
+      "sourceCommit": "e3b240c878c0c64c3c374edbdc5bbdb69c04ed82",
+      "sourceDateEpoch": 1792466766
     },
     "gateway": {
       "repository": "ghcr.io/pokerlost/pokergateway",
-      "digest": "sha256:466d84debd0919381dd3bd0cdd5a37027b177549e90f626bcf80b8451e40cda6",
-      "localTag": "local-dd63151ac299"
+      "digest": "",
+      "localTag": "local-7f3407232dbe-e1792466764",
+      "sourceCommit": "7f3407232dbe68a0ad059de8e4e165e5f37db90c",
+      "sourceDateEpoch": 1792466764
     },
     "auth": {
       "repository": "ghcr.io/pokerlost/authservice",
-      "digest": ""
+      "digest": "",
+      "sourceCommit": "ddbe3c7bc774222338a5a34b643fbab97d12cfc1"
     },
     "accounts": {
       "repository": "ghcr.io/mloso/accountsservice",
-      "digest": ""
+      "digest": "",
+      "sourceCommit": "62991caeaa7f59f0eba50ac6d269a54afc4e1df5"
     },
     "virtual-money": {
       "repository": "ghcr.io/pokerlost/virtualmoney",
-      "digest": ""
+      "digest": "",
+      "sourceCommit": "89e7bc3bcb8b7c2eb495a377627867b8688de7c0"
     },
     "poker": {
       "repository": "ghcr.io/pokerlost/pokerservice",
-      "digest": ""
+      "digest": "",
+      "sourceCommit": "eb0ff151ebf570bfa0496736548b58a165afe917"
     },
     "crypto": {
       "repository": "ghcr.io/pokerlost/cryptoservice",
-      "digest": ""
+      "digest": "",
+      "sourceCommit": "24fe40add43953e98141d234dacaf8945179c800"
     },
     "postgres": {
       "repository": "postgres",
@@ -38,34 +47,40 @@
   },
   "charts": {
     "service": {
-      "file": "deploy/charts/fastapi-service-0.2.0-dev.0.tgz",
-      "sha256": "ffcd3ffca8662855314429a5b8493b4153588eaa46b03924a31c4611c0cb59d8",
+      "file": "deploy/charts/fastapi-service-0.3.0-dev.0.tgz",
+      "sha256": "ec7f767a517617bd7a5511b238a3b6a90b51f3a0d15b7d2a1e1e96c2adbfb6cf",
       "source": "https://github.com/serrja/fastApiTemplate",
-      "sourceCommit": "512d7b7a4030f6bde210d355f164e59f0a4ec533"
+      "sourceCommit": "fd8c7af19ba3e1faf035a01e782d983727e6e61e"
     },
     "web": {
-      "file": "deploy/charts/poker-web-0.1.0-dev.0.tgz",
-      "sha256": "bbb4435588bd069a2f2f13fe6c48a68344a0ef3492e53cfe4d3d03fbad282386",
+      "file": "deploy/charts/poker-web-0.2.0-dev.0.tgz",
+      "sha256": "eeab19c8b0c07ce075733d68a4e64a04fcd2018e8ae22d3c99584787d678d528",
       "source": "https://github.com/pokerlost/pokerWeb",
-      "sourceCommit": "31cffa183b9dba9d42cef79eb17a36db629ca16e"
+      "sourceCommit": "fc73c193ab0bfbf77350cbe4fb8a2330586ace5c"
     },
     "gateway": {
-      "file": "deploy/charts/poker-gateway-0.1.0-dev.0.tgz",
-      "sha256": "08079ef567479b2323c10965061d6bd11dcff1547dfa549fadb2925d8eb11f40",
+      "file": "deploy/charts/poker-gateway-0.2.0-dev.0.tgz",
+      "sha256": "c5ae2056161569efd6a05fa1b39bdca891db291cb07299a14fd18fc36eca4307",
       "source": "https://github.com/pokerlost/pokerGateway",
-      "sourceCommit": "013a9b524dd7435f10be1bf6cfc05ab07c21c0cc"
+      "sourceCommit": "5c1ff2aa22017074437cc720b96900b9254f1636"
     }
   },
   "game": {
-    "clientCommit": "295ce5f1800e0806e1cad9e64946ed589bc09a02",
-    "manifestSha256": "21a2af989399909d5c0fae4d1bd3b7140c66fc383e632b12ceeec7c052c869f2",
+    "clientCommit": "0b68c815be0cf69c3722e3bd74fc96950ca455b9",
+    "manifestSha256": "7f6e2ce2f53734c00d10e6690cec5f11d95b77328921394c04c4ab0021bbe417",
     "bridgeVersion": 1,
-    "image": "ghcr.io/pokerlost/poker-game-web@sha256:7b84e9f738580ac1454eba13216b97ed475089204fadf5dfdbab76c4c7fff1bd"
+    "image": "ghcr.io/pokerlost/poker-game-web@sha256:a4726406393b20836a41ca32968edd6b0f6a6ba6e5bbe65388627edb038d1fad"
   },
   "gatewayApi": {
     "version": "v1.6.3",
     "file": "deploy/crds/gateway-api-v1.6.3.yaml",
     "sha256": "356c2b8e286a964dc20995435659ad1095386329974793af10bbfe3eff977fe5",
     "source": "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml"
+  },
+  "observability": {
+    "prometheus": "prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e",
+    "grafana": "grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f",
+    "loki": "grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193",
+    "alloy": "grafana/alloy:v1.21.0@sha256:9726bfba078de9bc2212c60c6e643238c700b4fe0868ea78cbe03163d03d95bf"
   }
 }
