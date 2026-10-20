@@ -34,6 +34,11 @@ RECEIPT_COMMAND = $(QUALITY_RUN) python docker/release.py receipt
 OFFLINE_PREFLIGHT_COMMAND = command -v kind helm kubectl >/dev/null && $(DOCKER) image inspect postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 >/dev/null || { echo "BLOCKED: prepare pinned database/Kind images and tools online first." >&2; exit 2; }
 CI_LOCAL_TARGETS := check coverage build verify release-check
 include docker/quality-python.mk
+
+.PHONY: native-prerequisites
+help: native-prerequisites
+native-prerequisites:
+	@printf '%s\n' 'Infra acceptance also requires host uv, kind, kubectl and Helm; it creates and removes its own local Kind cluster.'
 .PHONY: test-database-local
 test-database-local:
 	/bin/bash docker/verify-database.sh
