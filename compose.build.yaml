@@ -1,0 +1,69 @@
+services:
+  auth:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/authService
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${AUTH_SOURCE_COMMIT:?Validate source pins first}
+        SDK_SOURCE_MODE: local
+      additional_contexts:
+        sdk-source: ${SDK_SOURCE_CONTEXT:?Prepare the private SDK source cache}
+    pull_policy: never
+  accounts:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/accountsService
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${ACCOUNTS_SOURCE_COMMIT:?Validate source pins first}
+        SDK_SOURCE_MODE: local
+      additional_contexts:
+        sdk-source: ${SDK_SOURCE_CONTEXT:?Prepare the private SDK source cache}
+    pull_policy: never
+  virtual-money:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/virtualMoney
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${VIRTUAL_MONEY_SOURCE_COMMIT:?Validate source pins first}
+        SDK_SOURCE_MODE: local
+      additional_contexts:
+        sdk-source: ${SDK_SOURCE_CONTEXT:?Prepare the private SDK source cache}
+    pull_policy: never
+  poker:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/pokerService
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${POKER_SOURCE_COMMIT:?Validate source pins first}
+        SDK_SOURCE_MODE: local
+      additional_contexts:
+        sdk-source: ${SDK_SOURCE_CONTEXT:?Prepare the private SDK source cache}
+    pull_policy: never
+  crypto:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/cryptoService
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${CRYPTO_SOURCE_COMMIT:?Validate source pins first}
+        SDK_SOURCE_MODE: local
+      additional_contexts:
+        sdk-source: ${SDK_SOURCE_CONTEXT:?Prepare the private SDK source cache}
+    pull_policy: never
+  gateway:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/pokerGateway
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${GATEWAY_SOURCE_COMMIT:?Validate source pins first}
+        SOURCE_DATE_EPOCH: ${GATEWAY_SOURCE_DATE_EPOCH:-0}
+    pull_policy: never
+  web:
+    build:
+      context: ${PLATFORM_SOURCE_ROOT:-..}/pokerWeb
+      target: runtime
+      args:
+        SOURCE_COMMIT: ${WEB_SOURCE_COMMIT:?Validate source pins first}
+        SOURCE_DATE_EPOCH: ${WEB_SOURCE_DATE_EPOCH:-0}
+      additional_contexts:
+        game: ${GAME_ARTIFACT:?Use the real pinned Flutter artifact}
+    pull_policy: never

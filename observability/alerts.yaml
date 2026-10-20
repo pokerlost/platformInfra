@@ -1,0 +1,10 @@
+groups:
+- name: local-capacity
+  rules:
+  - alert: ScrapeUnavailable
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: A configured local scrape target is unavailable

@@ -82,6 +82,8 @@ def test_full_values_preserve_artifact_identity_and_database_capabilities(
     assert gateway["traefik"]["providers"]["kubernetesGateway"]["namespaces"] == [
         "isolated"
     ]
+    assert gateway["traefik"]["image"]["digest"] == "sha256:" + "c" * 64
+    assert gateway["traefik"]["image"]["repository"] == "ghcr.io/pokerlost/gateway"
     assert (output / "charts/service.tgz").read_bytes() == b"synthetic-checksum-input"
     assert "DATABASE_URL" not in env
 
@@ -100,6 +102,12 @@ def test_preview_allows_only_explicit_web_gateway_tags(
         "GATEWAY_IMAGE=gateway:candidate",
     ]
     assert json.loads((output / "web.values.json").read_text())["localDevelopment"]
+    gateway = json.loads((output / "gateway.values.json").read_text())
+    assert gateway["traefik"]["image"] == {
+        "repository": "gateway",
+        "tag": "candidate",
+        "digest": None,
+    }
     assert not (output / "auth.values.json").exists()
     with pytest.raises(ValueError, match="Unpublished"):
         image_ref("auth", data["images"]["auth"], True)
@@ -250,16 +258,25 @@ def test_native_initialization_creates_private_consistent_credentials_once(
     """Run the actual Make/OpenSSL recipe against a disposable data directory."""
     import re
 
-    command = ["make", "--file", str(ROOT / "Makefile"), "init-local"]
-    subprocess.run(command, cwd=tmp_path, check=True, capture_output=True, timeout=20)
+    state = tmp_path / "private-state"
+    secrets = state / "secrets"
+    command = [
+        "make",
+        "CONTAINERIZED=1",
+        "init-local",
+        f"PLATFORM_STATE_DIR={state}",
+        f"PLATFORM_SECRET_DIR={secrets}",
+        f"PLATFORM_VALUES_DIR={tmp_path / 'generated'}",
+    ]
+    subprocess.run(command, cwd=ROOT, check=True, capture_output=True, timeout=20)
     before: dict[str, str] = {}
     for name in ("auth", "accounts"):
-        password = tmp_path / ".local" / (name + "-db-password")
+        password = secrets / (name + "-db-password")
         data = password.read_bytes()
         valid = re.fullmatch(rb"[0-9a-f]{48}", data) is not None
         assert valid, "Password files must contain exactly 48 hex bytes without LF"
         assert password.stat().st_mode & 0o777 == 0o600
-        env_file = tmp_path / ".local" / (name + ".env")
+        env_file = secrets / (name + ".env")
         expected = (
             b"DATABASE_URL=postgresql+asyncpg://app:"
             + data
@@ -269,11 +286,9 @@ def test_native_initialization_creates_private_consistent_credentials_once(
         assert consistent, "The DSN and password file must contain the same credential"
         assert env_file.stat().st_mode & 0o777 == 0o600
         before[name] = hashlib.sha256(data).hexdigest()
-    subprocess.run(command, cwd=tmp_path, check=True, capture_output=True, timeout=20)
+    subprocess.run(command, cwd=ROOT, check=True, capture_output=True, timeout=20)
     for name, expected_hash in before.items():
         assert (
-            hashlib.sha256(
-                (tmp_path / ".local" / (name + "-db-password")).read_bytes()
-            ).hexdigest()
+            hashlib.sha256((secrets / (name + "-db-password")).read_bytes()).hexdigest()
             == expected_hash
         )

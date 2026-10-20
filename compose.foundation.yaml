@@ -23,44 +23,49 @@ services:
   auth-migrate:
     <<: *runtime
     image: ${AUTH_IMAGE:?Run full artifact validation before starting foundations}
-    env_file: [{path: .local/auth.env, required: true}]
+    env_file: [{path: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/auth.env", required: true}]
     command: [python, -m, alembic, upgrade, head]
     depends_on: {auth-db: {condition: service_healthy}}
     networks: [foundation]
   accounts-migrate:
     <<: *runtime
     image: ${ACCOUNTS_IMAGE:?Run full artifact validation before starting foundations}
-    env_file: [{path: .local/accounts.env, required: true}]
+    env_file: [{path: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/accounts.env", required: true}]
     command: [python, -m, alembic, upgrade, head]
     depends_on: {accounts-db: {condition: service_healthy}}
     networks: [foundation]
   auth:
     <<: *runtime
+    environment: {AUTHSERVICE_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}", WEB_CONCURRENCY: "1"}
     image: ${AUTH_IMAGE:?Run full artifact validation before starting foundations}
-    env_file: [{path: .local/auth.env, required: true}]
+    env_file: [{path: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/auth.env", required: true}]
     depends_on: {auth-migrate: {condition: service_completed_successfully}}
     networks: [foundation]
   accounts:
     <<: *runtime
+    environment: {ACCOUNTSSERVICE_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}", WEB_CONCURRENCY: "1"}
     image: ${ACCOUNTS_IMAGE:?Run full artifact validation before starting foundations}
-    env_file: [{path: .local/accounts.env, required: true}]
+    env_file: [{path: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/accounts.env", required: true}]
     depends_on: {accounts-migrate: {condition: service_completed_successfully}}
     networks: [foundation]
   virtual-money:
     <<: *runtime
+    environment: {VIRTUALMONEY_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}", WEB_CONCURRENCY: "1"}
     image: ${VIRTUAL_MONEY_IMAGE:?Run full artifact validation before starting foundations}
     networks: [foundation]
   poker:
     <<: *runtime
+    environment: {POKERSERVICE_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}", WEB_CONCURRENCY: "1"}
     image: ${POKER_IMAGE:?Run full artifact validation before starting foundations}
     networks: [foundation]
   crypto:
     <<: *runtime
+    environment: {CRYPTOSERVICE_ENVIRONMENT: "${PLATFORM_ENVIRONMENT:-local}", WEB_CONCURRENCY: "1"}
     image: ${CRYPTO_IMAGE:?Run full artifact validation before starting foundations}
     networks: [foundation]
 volumes:
   auth_data:
   accounts_data:
 secrets:
-  auth_password: {file: .local/auth-db-password}
-  accounts_password: {file: .local/accounts-db-password}
+  auth_password: {file: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/auth-db-password"}
+  accounts_password: {file: "${PLATFORM_SECRET_DIR:?Set private external secret directory}/accounts-db-password"}

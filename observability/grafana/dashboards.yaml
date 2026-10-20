@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: Pokerlost
+    orgId: 1
+    folder: Pokerlost
+    type: file
+    disableDeletion: false
+    editable: false
+    options: {path: /etc/grafana/dashboards}
