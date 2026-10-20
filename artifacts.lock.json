@@ -10,7 +10,7 @@
     },
     "gateway": {
       "repository": "ghcr.io/pokerlost/pokergateway",
-      "digest": "",
+      "digest": "sha256:fb7c81f3f256c6103543f67b9ebb8ea92669af0fac9e4e21226b502f57e51d4f",
       "localTag": "local-7f3407232dbe-e1792466764",
       "sourceCommit": "7f3407232dbe68a0ad059de8e4e165e5f37db90c",
       "sourceDateEpoch": 1792466764

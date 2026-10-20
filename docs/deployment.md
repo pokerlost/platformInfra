@@ -138,3 +138,5 @@ or require private registry pull credentials. Pinned official PostgreSQL and fou
 monitoring images must already be cached or pulled from their public upstreams.
 This is not a claim of an offline cold-daemon acceptance. Source checkouts and the
 SDK source cache are needed only for build-or-reuse, not for loaded-artifact up.
+
+The reviewed gateway archive was promoted by [delivery run 39364837277](https://github.com/pokerlost/pokerGateway/actions/runs/39364837277) without rebuilding. Its actual private OCI digest is in the lock. The web package was not visible through either connected Chrome or the package API; no new destination or package access was created. The remaining six private image refs and a local private-pull connection still block registry mode, independently of working local build/load.

@@ -10,6 +10,8 @@ kube-secrets cluster local-context gateway-api deploy-kind:
 	$(MAKE) CONTAINERIZED=1 $@
 VALUES_OUTPUT ?= $(CURDIR)/.local/helm
 QUALITY_RUN_ARGS += --mount "type=bind,source=$(VALUES_OUTPUT),target=/app/.local/helm" --env PLATFORM_TEST_URL
+# Data-only tests have no sibling checkout mount inside the quality container.
+QUALITY_RUN_ARGS += --env PLATFORM_SOURCE_ROOT=/source-checkouts
 .PHONY: prepare-values
 prepare-values:
 	@mkdir -p "$(VALUES_OUTPUT)"

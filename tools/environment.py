@@ -57,8 +57,11 @@ class DeploySettings(BaseSettings):
                     "Paths must be plain single-line filesystem references"
                 )
         sources = self.source_root.resolve()
+        owner = Path(__file__).resolve().parents[1]
         for path in (self.state_dir, self.secret_dir):
-            if not path.is_absolute() or path.resolve().is_relative_to(sources):
+            if not path.is_absolute() or any(
+                path.resolve().is_relative_to(root) for root in (sources, owner)
+            ):
                 raise ValueError(
                     "State/secrets require absolute paths outside source checkouts"
                 )

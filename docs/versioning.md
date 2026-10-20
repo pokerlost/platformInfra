@@ -10,8 +10,8 @@ identity. Source commits, image IDs, registry digests and chart hashes are disti
 Local mode derives stable tags from the full reviewed source pins and verifies
 OCI source labels before up. A local image ID is never written as a registry
 digest. Registry mode requires every actual immutable image digest and existing
-read authorization. Seven application digests are currently intentionally empty;
-this blocks registry mode while the full local build mode remains usable.
+read authorization. Six application digests are currently intentionally empty;
+this blocks registry mode while the full local build mode remains usable. The gateway entry is the actual reviewed private OCI promotion, not a local config ID.
 
 The client entry pins bridge 1, a full client commit and the manifest checksum of
 the actual published bundle. A locally rebuilt Flutter bundle may have a different

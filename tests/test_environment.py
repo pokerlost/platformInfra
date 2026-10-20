@@ -48,6 +48,11 @@ def test_invalid_ports_paths_and_missing_pins_do_not_write(
         DeploySettings(http_port=19090)
     with pytest.raises(ValidationError):
         DeploySettings(secret_dir=ROOT / ".local/secrets")
+    with pytest.raises(ValidationError):
+        DeploySettings(
+            source_root=tmp_path / "external-sources",
+            secret_dir=ROOT / ".local/secrets",
+        )
     data = json.loads((ROOT / "artifacts.lock.json").read_text())
     del data["images"]["auth"]["sourceCommit"]
     # Keep real vendored bytes; isolate only the missing-pin input.
