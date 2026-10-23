@@ -82,7 +82,10 @@ make down PROJECT=poker-platform-example
 Settings priority is explicit CLI options > `PLATFORM_*` environment > the
 selected dotenv > defaults. Omitted CLI options do not overwrite environment.
 Make command-line state/secret paths are forwarded as explicit CLI options.
-`local`, `dev` and `ci` select labels/configuration; `remote` only prepares a plan
+`main`, `dev`, `test` and `local` select runtime identity. Legacy `ci`/`remote`
+environment values now fail with a configuration error; explicitly select `execution=ci/remote`
+separately. Only environment local with non-remote execution can administer Compose; other
+environments prepare a plan
 and refuses local side effects. `local` image mode builds exact pinned sources;
 `registry` image mode requires every immutable image digest before startup.
 Generated Compose variables are cleared from the ambient Compose process so its
@@ -140,3 +143,23 @@ This is not a claim of an offline cold-daemon acceptance. Source checkouts and t
 SDK source cache are needed only for build-or-reuse, not for loaded-artifact up.
 
 The reviewed gateway archive was promoted by [delivery run 39364837277](https://github.com/pokerlost/pokerGateway/actions/runs/39364837277) without rebuilding. Its actual private OCI digest is in the lock. The web package was not visible through either connected Chrome or the package API; no new destination or package access was created. The remaining six private image refs and a local private-pull connection still block registry mode, independently of working local build/load.
+
+
+## Environment migration
+
+`--environment main|dev|test|local` is separate from `--execution host|ci|remote` and
+artifact `--mode local|registry`. There is no implicit ci-to-test or remote-to-main migration.
+CLI values override process variables, an explicitly selected dotenv file and defaults. Use
+`python -m tools.environment --environment test --dry-run` in the prepared tools environment
+for a data-only plan; it creates no files, containers or network requests.
+
+The local state path and existing volumes are preserved. Non-local defaults use distinct
+`platform-<environment>` directories and secrets within that directory; an explicit shared path
+is rejected. Plans include distinct Compose, namespace and database identities. Non-local
+execution remains prepared-only, so changing a label cannot operate the existing local stack.
+Select distinct volumes/secrets/credentials when a future explicitly authorized deployment is
+implemented; no current data is renamed or migrated. Remote API origins remain not_configured
+until supplied explicitly as HTTPS roots. No DNS/remote environment is claimed to exist.
+
+Host SDK clients use the published loopback gateway port. Internal gateway-to-service HTTP remains
+an explicitly configured fixed container-network mapping, not a general SDK HTTP exception.

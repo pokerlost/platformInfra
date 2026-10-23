@@ -1,3 +1,12 @@
+ifeq ($(CONTAINERIZED),1)
+RUFF ?= ruff
+else
+RUFF ?= uvx --from ruff==0.16.4 ruff
+endif
+# Quick dev commands never prepare a product/build image.
+ifneq ($(filter lint format format-check check,$(MAKECMDGOALS)),)
+override CONTAINERIZED := 1
+endif
 ifeq ($(OFFLINE),1)
 export UV_OFFLINE := 1
 endif
@@ -32,7 +41,9 @@ VERSION_COMMAND = $(QUALITY_RUN) python -m tools.composition_version version
 RELEASE_CHECK_COMMAND = test "$$(sha256sum dist/platform-infra-$(COMPOSITION_VERSION).tar.gz | cut -d " " -f 1)" = "$$(git archive --format=tar --prefix=platform-infra-$(COMPOSITION_VERSION)/ HEAD | gzip --no-name | sha256sum | cut -d " " -f 1)" && $(QUALITY_RUN) python -m tools.composition_version release-check
 RECEIPT_COMMAND = $(QUALITY_RUN) python docker/release.py receipt
 OFFLINE_PREFLIGHT_COMMAND = command -v kind helm kubectl >/dev/null && $(DOCKER) image inspect postgres:17.11-trixie@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 >/dev/null || { echo "BLOCKED: prepare pinned database/Kind images and tools online first." >&2; exit 2; }
-CI_LOCAL_TARGETS := check coverage build verify release-check
+CI_LOCAL_TARGETS := acceptance coverage build verify release-check
+QUALITY_EXTRA_TARGETS += acceptance
+CI_LOCAL_TARGETS ?= acceptance coverage build verify release-check
 include docker/quality-python.mk
 
 .PHONY: native-prerequisites
@@ -66,8 +77,8 @@ help:
 install:
 	$(UV) sync --locked
 lint:
-	$(UV) run --locked ruff check tools tests
-	$(UV) run --locked ruff format --check tools tests
+	$(RUFF) check tools tests
+	$(RUFF) format --check tools tests
 typecheck:
 	$(UV) run --locked mypy
 test-unit:
@@ -77,7 +88,9 @@ test-integration:
 	$(UV) run --locked pytest tests/platform_integration.py --junitxml=coverage/platform.xml
 test-database:
 	$(UV) run --locked pytest tests/postgres_integration.py --junitxml=coverage/postgres.xml
-check: lint typecheck test-unit chart-check check-manifest
+check: lint ## Fast lint-only gate; no tests/build.
+
+acceptance: lint typecheck test-unit chart-check check-manifest
 values:
 	$(UV) run --locked python -m tools.artifacts --output $(VALUES_DIR) --release $(RELEASE) --namespace $(NAMESPACE)
 preview-values:
@@ -166,7 +179,7 @@ init-local: local-only
 		if ! test -e "$(DEPLOY_SECRET_DIR)/$$name.env"; then printf 'DATABASE_URL=postgresql+asyncpg://app:%s@%s-db:5432/%s\n' "$$(cat "$(DEPLOY_SECRET_DIR)/$$name-db-password")" "$$name" "$$name" > "$(DEPLOY_SECRET_DIR)/$$name.env"; fi; \
 	done; if ! test -e "$(DEPLOY_SECRET_DIR)/grafana-admin-password"; then openssl rand -hex 24 | tr -d '\n' > "$(DEPLOY_SECRET_DIR)/grafana-admin-password"; fi
 local-only: config
-	@jq -e '.settings.environment != "remote"' "$(PLATFORM_VALUES_DIR)/plan.json" >/dev/null || { echo "Remote environment is prepared-only"; exit 1; }
+	@jq -e '.settings.environment == "local" and .settings.execution != "remote"' "$(PLATFORM_VALUES_DIR)/plan.json" >/dev/null || { echo "Only explicit local execution may administer this Compose stack"; exit 1; }
 build-or-reuse: local-only validate
 	@set -eu; $(COMPOSE_BUILD) config --no-env-resolution --format json | jq -r '.services[] | select(.build) | [.build.context,.build.args.SOURCE_COMMIT,(.build.args.SOURCE_DATE_EPOCH // 0)] | @tsv' | while IFS="$$(printf '\t')" read -r directory revision epoch; do \
 		test "$$(git -C "$$directory" rev-parse HEAD)" = "$$revision" || { echo "Source pin mismatch: $$directory"; exit 1; }; \
@@ -312,3 +325,10 @@ load-images: local-only
 	$(DOCKER) image load --input "$(IMAGE_BUNDLE_DIR)/app-images.tar.gz"
 	@set -eu; while IFS="$$(printf '\t')" read -r ref expected; do test "$$($(DOCKER) image inspect "$$ref" --format '{{.Id}}')" = "$$expected" || { echo "Loaded image identity mismatch: $$ref"; exit 1; }; done < "$(IMAGE_BUNDLE_DIR)/image-receipts.tsv"
 	$(MAKE) images-ready
+
+.PHONY: dev-policy-help
+help: dev-policy-help
+dev-policy-help:
+	@printf '%s\n' 'Daily: make lint; explicit git push origin dev.' \
+	  'Manual only: test, typecheck, coverage, build, acceptance, ci-local.' \
+	  'Native lint tools must be installed; lint never syncs/builds the application.'

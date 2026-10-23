@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 import typer
 import yaml
@@ -24,7 +25,9 @@ class DeploySettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PLATFORM_", extra="ignore", hide_input_in_errors=True
     )
-    environment: Literal["local", "dev", "ci", "remote"] = "local"
+    environment: Literal["main", "dev", "test", "local"] = "local"
+    execution: Literal["host", "ci", "remote"] = "host"
+    api_origin: str | None = None
     mode: Literal["local", "registry"] = "local"
     source_root: Path = Path("..")
     state_dir: Path = Path.home() / ".local/state/pokerlost/platform-local"
@@ -42,8 +45,51 @@ class DeploySettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_paths_and_ports(self) -> DeploySettings:
+        if "state_dir" not in self.model_fields_set:
+            self.state_dir = (
+                Path.home() / f".local/state/pokerlost/platform-{self.environment}"
+            )
+        if (
+            self.environment != "local"
+            and self.state_dir.name != f"platform-{self.environment}"
+        ):
+            raise ValueError(
+                "Non-local state requires an environment-specific directory name"
+            )
         if "secret_dir" not in self.model_fields_set:
             self.secret_dir = self.state_dir / "secrets"
+        if self.environment != "local" and not self.secret_dir.resolve().is_relative_to(
+            self.state_dir.resolve()
+        ):
+            raise ValueError(
+                "Non-local secrets must be inside the environment state directory"
+            )
+        if self.api_origin is None and self.environment == "local":
+            self.api_origin = f"http://127.0.0.1:{self.http_port}"
+        if self.api_origin is not None:
+            parsed = urlsplit(self.api_origin)
+            loopback = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+            if (
+                not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path not in {"", "/"}
+                or parsed.query
+                or parsed.fragment
+                or any(c.isspace() or ord(c) < 32 for c in self.api_origin)
+                or "\\" in self.api_origin
+                or parsed.port == 0
+                or (
+                    parsed.scheme != "https"
+                    and not (
+                        self.environment == "local"
+                        and loopback
+                        and parsed.scheme == "http"
+                    )
+                )
+                or (self.environment == "local" and not loopback)
+            ):
+                raise ValueError("Invalid environment origin")
         ports = [
             getattr(self, name)
             for name in type(self).model_fields
@@ -106,6 +152,8 @@ def emit_environment(settings: DeploySettings, manifest: Path, output: Path) -> 
     ]
     values = settings.model_dump(mode="json")
     for name, value in values.items():
+        if value is None:
+            continue
         key = name.upper() if name.endswith("_port") else "PLATFORM_" + name.upper()
         lines.append(f"{key}={value}")
     # Named Docker build context contains a bare source-only SDK cache, no credentials.
@@ -176,9 +224,15 @@ def emit_environment(settings: DeploySettings, manifest: Path, output: Path) -> 
                 "game": data["game"],
                 "config_dir": str(config_dir),
                 "config_sha256": config_sha256,
-                "execution": "prepared-only"
-                if settings.environment == "remote"
-                else "local-compose",
+                "execution": "local-compose"
+                if settings.environment == "local" and settings.execution != "remote"
+                else "prepared-only",
+                "endpoint_status": "configured"
+                if settings.api_origin is not None
+                else "not_configured",
+                "compose_project": f"poker-platform-{settings.environment}",
+                "namespace": f"pokerlost-{settings.environment}",
+                "database_identity": f"pokerlost-{settings.environment}",
             },
             indent=2,
         )
@@ -196,8 +250,11 @@ def main(
     env_file: Annotated[Path | None, typer.Option()] = None,
     mode: Annotated[Literal["local", "registry"] | None, typer.Option()] = None,
     environment: Annotated[
-        Literal["local", "dev", "ci", "remote"] | None, typer.Option()
+        Literal["main", "dev", "test", "local"] | None, typer.Option()
     ] = None,
+    execution: Annotated[Literal["host", "ci", "remote"] | None, typer.Option()] = None,
+    api_origin: Annotated[str | None, typer.Option()] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
     secret_dir: Annotated[Path | None, typer.Option()] = None,
     state_dir: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
@@ -207,6 +264,8 @@ def main(
         for key, value in {
             "mode": mode,
             "environment": environment,
+            "execution": execution,
+            "api_origin": api_origin,
             "secret_dir": secret_dir,
             "state_dir": state_dir,
         }.items()
@@ -214,7 +273,21 @@ def main(
     }
     try:
         settings = DeploySettings(_env_file=env_file, **inputs)
-        emit_environment(settings, manifest, output)
+        if dry_run:
+            typer.echo(
+                json.dumps(
+                    {
+                        "settings": settings.model_dump(mode="json"),
+                        "endpoint_status": "configured"
+                        if settings.api_origin
+                        else "not_configured",
+                        "execution": "not_executed",
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            emit_environment(settings, manifest, output)
     except ValidationError, ValueError, OSError:
         typer.echo(
             "Invalid deployment plan: check paths, ports and artifact pins",
